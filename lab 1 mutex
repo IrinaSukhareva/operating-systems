@@ -1,0 +1,53 @@
+#include <iostream>
+#include <condition_variable>
+#include <chrono>
+#include <thread>
+#include <mutex>
+
+using namespace std;
+using namespace chrono_literals;
+
+int ready = 0;
+mutex mtx;
+condition_variable cv;
+string s;
+
+void provide(){
+    int a = 1;
+    while (a == 1) {
+        unique_lock <mutex> ul(mtx);
+        if (ready == 1) {
+            ul.unlock();
+            continue;
+        }
+        cout << "Provide:\n";
+        this_thread::sleep_for(1000ms);
+        s = s + "Hello";
+        cout << s;
+        ready = 1;
+        cv.notify_one();
+        ul.unlock();
+    }
+}
+
+void consume() {
+    int a = 1;
+    while (a == 1) {
+        unique_lock <mutex> ul(mtx);
+        while (ready != 1) {
+            cv.wait(ul, [] {return ready; }); //чтобы поток ожидал изменения состояния от provide() и в это время остановил свою работу, освободил мьютекс и прекратил потребление ресурсов процессора
+        }
+        cout << "\nConsume:\n";
+        s = s + ", World! ";
+        cout << s<<endl<<endl;
+        ready = 0;
+        ul.unlock();
+    }
+}
+
+int main(){
+    thread provider(provide);
+    thread consumer(consume);
+    provider.join();
+    consumer.join();
+}
